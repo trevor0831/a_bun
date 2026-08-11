@@ -203,6 +203,7 @@
   }
   .send-btn:disabled { opacity: 0.5; cursor: default; }
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css">
 </head>
 <body>
 
@@ -241,8 +242,16 @@
     <div class="messages" id="messages"></div>
 
     <div class="composer">
-      <input type="text" id="userInput" placeholder="傳個訊息給阿文試試看..." />
+      <button class="send-btn" id="micBtn" title="語音輸入" style="padding: 0 14px;"><i class="ti ti-microphone" style="font-size:18px;"></i></button>
+      <input type="text" id="userInput" placeholder="傳個訊息給阿文試試看,或按左邊麥克風說話..." />
       <button class="send-btn" id="sendBtn">送出</button>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:var(--muted);">
+      <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+        <input type="checkbox" id="voiceToggle" checked style="width:14px;height:14px;" />
+        阿文用語音念出回覆
+      </label>
+      <span id="voiceStatus"></span>
     </div>
   </div>
 </div>
@@ -324,6 +333,7 @@ async function sendMessage() {
     history.push({ role: 'assistant', content: raw });
 
     if (emotion) setFace(emotion);
+    speak(clean);
   } catch (err) {
     typingEl.remove();
     addMessage('system-note', '發生錯誤,請再試一次。');
@@ -339,6 +349,69 @@ sendBtn.addEventListener('click', sendMessage);
 userInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') sendMessage();
 });
+
+// ---- 語音輸入 (Speech Recognition) ----
+const micBtn = document.getElementById('micBtn');
+const voiceToggle = document.getElementById('voiceToggle');
+const voiceStatus = document.getElementById('voiceStatus');
+const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (SpeechRecognitionAPI) {
+  const recognition = new SpeechRecognitionAPI();
+  recognition.lang = 'zh-TW';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  let listening = false;
+
+  recognition.addEventListener('start', () => {
+    listening = true;
+    micBtn.style.background = 'var(--accent-deep)';
+    micBtn.style.color = '#fff';
+    voiceStatus.textContent = '聽你說話中...';
+  });
+
+  recognition.addEventListener('end', () => {
+    listening = false;
+    micBtn.style.background = '';
+    micBtn.style.color = '';
+    voiceStatus.textContent = '';
+  });
+
+  recognition.addEventListener('result', (e) => {
+    const transcript = e.results[0][0].transcript;
+    userInput.value = transcript;
+    sendMessage();
+  });
+
+  recognition.addEventListener('error', (e) => {
+    voiceStatus.textContent = '語音辨識出錯 (' + e.error + ')';
+  });
+
+  micBtn.addEventListener('click', () => {
+    if (listening) {
+      recognition.stop();
+    } else {
+      recognition.start();
+    }
+  });
+} else {
+  micBtn.disabled = true;
+  micBtn.title = '這個瀏覽器不支援語音輸入';
+  voiceStatus.textContent = '此瀏覽器不支援語音輸入,建議用電腦版 Chrome';
+}
+
+// ---- 語音輸出 (Speech Synthesis) ----
+function speak(text) {
+  if (!voiceToggle.checked) return;
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'zh-TW';
+  utter.rate = 1.05;
+  utter.pitch = 1.15;
+  window.speechSynthesis.speak(utter);
+}
 
 applyBtn.addEventListener('click', () => {
   systemPrompt = document.getElementById('systemPrompt').value;
