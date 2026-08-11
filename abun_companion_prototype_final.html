@@ -402,14 +402,37 @@ if (SpeechRecognitionAPI) {
 }
 
 // ---- 語音輸出 (Speech Synthesis) ----
+function extractChinesePart(text) {
+  // 只抓括號裡的中文翻譯，跳過台語拼音部分
+  const matches = [...text.matchAll(/[(（]([^)）]*)[)）]/g)];
+  if (matches.length > 0) {
+    return matches.map(m => m[1]).join('，');
+  }
+  return text; // 沒有括號就整句念
+}
+
+function pickChildishVoice() {
+  const voices = window.speechSynthesis.getVoices();
+  // 優先找中文女聲（音調拉高後聽起來較童趣），找不到就用第一個中文語音
+  const zhVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('zh'));
+  const female = zhVoices.find(v => /female|女|yating|meijia|ting-ting|mei/i.test(v.name));
+  return female || zhVoices[0] || null;
+}
+
 function speak(text) {
   if (!voiceToggle.checked) return;
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
+
+  const toSpeak = extractChinesePart(text);
+  const utter = new SpeechSynthesisUtterance(toSpeak);
   utter.lang = 'zh-TW';
-  utter.rate = 1.05;
-  utter.pitch = 1.15;
+  utter.rate = 1.15;
+  utter.pitch = 1.7; // 拉高音調模擬童趣感（瀏覽器沒有真正的兒童聲線）
+
+  const voice = pickChildishVoice();
+  if (voice) utter.voice = voice;
+
   window.speechSynthesis.speak(utter);
 }
 
